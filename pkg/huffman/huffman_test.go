@@ -50,3 +50,42 @@ func TestBuildFrequencyTable(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildHuffmanTree(t *testing.T) {
+	freq := FrequencyTable{
+		'a': 3,
+		'b': 2,
+		'c': 1,
+	}
+
+	tree := BuildHuffmanTree(freq)
+
+	if tree == nil {
+		t.Fatal("Expected non-nil tree")
+	}
+
+	if tree.Freq != 6 {
+		t.Errorf("Expected root frequency 6, got %d", tree.Freq)
+	}
+
+	// Tree should have children
+	if tree.Left == nil || tree.Right == nil {
+		t.Errorf("Expected tree to have both children")
+	}
+}
+
+func TestBuildHuffmanTreeSingleChar(t *testing.T) {
+	freq := FrequencyTable{
+		'a': 5,
+	}
+
+	tree := BuildHuffmanTree(freq)
+
+	if tree == nil {
+		t.Fatal("Expected non-nil tree")
+	}
+
+	if tree.Char != 'a' || tree.Freq != 5 {
+		t.Errorf("Expected char 'a with freq 5, got char '%c' with freq %d", tree.Char, tree.Freq)
+	}
+}
