@@ -89,3 +89,74 @@ func TestBuildHuffmanTreeSingleChar(t *testing.T) {
 		t.Errorf("Expected char 'a with freq 5, got char '%c' with freq %d", tree.Char, tree.Freq)
 	}
 }
+
+func TestGenerateCodeTable(t *testing.T) {
+	tests := []struct {
+		name  string
+		freq  FrequencyTable
+		check func(CodeTable) bool
+	}{
+		{
+			name: "three characters",
+			freq: FrequencyTable{
+				'a': 3,
+				'b': 2,
+				'c': 1,
+			},
+			check: func(codes CodeTable) bool {
+				// More frequent characters should have shorter codes
+				return len(codes['a']) <= len(codes['b']) &&
+					len(codes['b']) <= len(codes['c']) &&
+					len(codes) == 3
+			},
+		},
+		{
+			name: "single character",
+			freq: FrequencyTable{
+				'a': 5,
+			},
+			check: func(codes CodeTable) bool {
+				return codes['a'] == "0" && len(codes) == 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tree := BuildHuffmanTree(tt.freq)
+			codes := GenerateCodeTable(tree)
+
+			if !tt.check(codes) {
+				t.Errorf("Code table validation failed: %v", codes)
+			}
+
+			// Verify prefix-free property
+			if !isPrefixFree(codes) {
+				t.Error("Codes are not prefix-free")
+			}
+		})
+	}
+}
+
+func isPrefixFree(codes CodeTable) bool {
+	codeList := make([]string, 0, len(codes))
+	for _, code := range codes {
+		codeList = append(codeList, code)
+	}
+
+	for i := 0; i < len(codeList); i++ {
+		for j := i + 1; j < len(codeList); j++ {
+			if isPrefix(codeList[i], codeList[j]) || isPrefix(codeList[j], codeList[i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isPrefix(s1, s2 string) bool {
+	if len(s1) > len(s2) {
+		return false
+	}
+	return s2[:len(s1)] == s1
+}

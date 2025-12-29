@@ -142,3 +142,35 @@ func removeNodes(nodes []*Node, idx1, idx2 int) []*Node {
 	}
 	return result
 }
+
+// GenerateCodeTable creates prefix codes from Huffman tree
+func GenerateCodeTable(root *Node) CodeTable {
+	codes := make(CodeTable)
+	if root == nil {
+		return codes
+	}
+
+	// Special case: single character
+	if root.Left == nil && root.Right == nil {
+		codes[root.Char] = "0"
+		return codes
+	}
+
+	generateCodes(root, "", codes)
+	return codes
+}
+
+func generateCodes(node *Node, code string, codes CodeTable) {
+	if node == nil {
+		return
+	}
+
+	// Leaf node
+	if node.Left == nil && node.Right == nil {
+		codes[node.Char] = code
+		return
+	}
+
+	generateCodes(node.Left, code+"0", codes)
+	generateCodes(node.Right, code+"1", codes)
+}
