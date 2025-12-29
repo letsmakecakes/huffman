@@ -174,3 +174,65 @@ func generateCodes(node *Node, code string, codes CodeTable) {
 	generateCodes(node.Left, code+"0", codes)
 	generateCodes(node.Right, code+"1", codes)
 }
+
+// EncodeData encodes data using the code table
+func EncodeData(data []byte, codes CodeTable) []byte {
+	var bitString string
+	for _, b := range data {
+		bitString += codes[b]
+	}
+
+	// Pack bits into bytes
+	byteCount := (len(bitString) + 7) / 8
+	result := make([]byte, byteCount)
+
+	for i := 0; i < len(bitString); i++ {
+		if bitString[i] == '1' {
+			byteIdx := i / 8
+			bitIdx := 7 - (i % 8)
+			result[byteIdx] |= 1 << bitIdx
+		}
+	}
+
+	return result
+}
+
+// DecodeData decodes compressed data using Huffman tree
+func DecodeData(data []byte, root *Node, originalSize int64, paddingBits int) ([]byte, error) {
+	if root == nil {
+		return nil, fmt.Errorf("invalid Huffman tree")
+	}
+
+	result := make([]byte, 0, originalSize)
+	current := root
+
+	// Special case: single character
+	if root.Left == nil && root.Right == nil {
+		for i := int64(0); i < originalSize; i++ {
+			result = append(result, root.Char)
+		}
+		return result, nil
+	}
+
+	totalBits := len(data)*8 - paddingBits
+
+	for i := 0; i < totalBits && int64(len(result)) < originalSize; i++ {
+		byteIdx := i / 8
+		bitIdx := 7 - (i % 8)
+		bit := (data[byteIdx] >> bitIdx) & 1
+
+		if bit == 0 {
+			current = current.Left
+		} else {
+			current = current.Right
+		}
+
+		// Reached leaf node
+		if current.Left == nil && current.Right == nil {
+			result = append(result, current.Char)
+			current = root
+		}
+	}
+
+	return result, nil
+}

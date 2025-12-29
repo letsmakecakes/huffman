@@ -1,6 +1,7 @@
 package huffman
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -159,4 +160,46 @@ func isPrefix(s1, s2 string) bool {
 		return false
 	}
 	return s2[:len(s1)] == s1
+}
+
+func TestEncodeDecodeData(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"simple", "aaabbc"},
+		{"single char", "aaaaa"},
+		{"longer text", "the quick brown fox jumps over the lazy dog"},
+		{"with newlines", "hello\nworld\n"},
+		{"unicode", "Hello, 世界!"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := []byte(tt.input)
+			freq := BuildFrequencyTableFromData(data)
+			tree := BuildHuffmanTree(freq)
+			codes := GenerateCodeTable(tree)
+
+			// Encode
+			encoded := EncodeData(data, codes)
+
+			// Calculate padding
+			totalBits := 0
+			for _, b := range data {
+				totalBits += len(codes[b])
+			}
+			paddingBits := (8 - (totalBits % 8)) % 8
+
+			// Decode
+			decoded, err := DecodeData(encoded, tree, int64(len(data)), paddingBits)
+			if err != nil {
+				t.Fatalf("Decode error: %v", err)
+			}
+
+			if !bytes.Equal(data, decoded) {
+				t.Errorf("Decoded data doesn't match original.\nOriginal: %s\nDecoded: %s", data, decoded)
+			}
+		})
+	}
 }
