@@ -65,7 +65,7 @@ func BuildFrequencyTableFromData(data []byte) FrequencyTable {
 	return freq
 }
 
-// BuildHuffmanTree constructs the Huffman tree from frequency table
+// BuildHuffmanTree constructs the Huffman tree from a frequency table
 func BuildHuffmanTree(freq FrequencyTable) *Node {
 	if len(freq) == 0 {
 		return nil
@@ -94,7 +94,7 @@ func BuildHuffmanTree(freq FrequencyTable) *Node {
 
 	// Build tree by repeatedly combining two lowest frequency nodes
 	for len(nodes) > 1 {
-		// Find two nodes with minimum frequency
+		// Find two nodes with a minimum frequency
 		min1Idx, min2Idx := findTwoMinimum(nodes)
 
 		// Create parent node
@@ -104,7 +104,7 @@ func BuildHuffmanTree(freq FrequencyTable) *Node {
 			Right: nodes[min2Idx],
 		}
 
-		// Remove the two minimum nodes and add parent
+		// Remove the two minimum nodes and add a parent
 		nodes = removeNodes(nodes, min1Idx, min2Idx)
 		nodes = append(nodes, parent)
 	}
@@ -143,7 +143,7 @@ func removeNodes(nodes []*Node, idx1, idx2 int) []*Node {
 	return result
 }
 
-// GenerateCodeTable creates prefix codes from Huffman tree
+// GenerateCodeTable creates prefix codes from a Huffman tree
 func GenerateCodeTable(root *Node) CodeTable {
 	codes := make(CodeTable)
 	if root == nil {
