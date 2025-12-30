@@ -333,3 +333,19 @@ func BenchmarkBuildHuffmanTree(b *testing.B) {
 		BuildHuffmanTree(freq)
 	}
 }
+
+func BenchmarkEncodeData(b *testing.B) {
+	data := bytes.Repeat([]byte("the quick brown fox jumps over the lazy dog "), 100)
+	freq := BuildFrequencyTableFromData(data)
+	tree := BuildHuffmanTree(freq)
+	codes := GenerateCodeTable(tree)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		encoded := EncodeData(data, codes)
+		_, err := DecodeData(encoded, tree, int64(len(data)), 0)
+		if err != nil {
+			b.Fatalf("Decode error: %v", err)
+		}
+	}
+}
