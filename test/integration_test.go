@@ -9,6 +9,32 @@ import (
 	"github.com/letsmakecakes/huffman/pkg/huffman"
 )
 
+// Helper function to test compression/decompression round-trip
+func testRoundTrip(t *testing.T, data []byte, errorMsg string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "input.txt")
+	compressedPath := filepath.Join(tmpDir, "compressed.huf")
+	decompressedPath := filepath.Join(tmpDir, "decompressed.txt")
+
+	if err := os.WriteFile(inputPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := huffman.CompressFile(inputPath, compressedPath); err != nil {
+		t.Fatalf("Compression failed: %v", err)
+	}
+
+	if err := huffman.DecompressFile(compressedPath, decompressedPath); err != nil {
+		t.Fatalf("Decompression failed: %v", err)
+	}
+
+	decompressed, _ := os.ReadFile(decompressedPath)
+	if !bytes.Equal(data, decompressed) {
+		t.Error(errorMsg)
+	}
+}
+
 func TestLargeFileCompression(t *testing.T) {
 	// Create a large test file
 	testData := bytes.Repeat([]byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "), 1000)
@@ -28,7 +54,7 @@ func TestLargeFileCompression(t *testing.T) {
 		t.Fatalf("Compression failed: %v", err)
 	}
 
-	// Verify compressed file exists
+	// Verify a compressed file exists
 	compressedInfo, err := os.Stat(compressedPath)
 	if err != nil {
 		t.Fatalf("Compressed file not created: %v", err)
@@ -120,53 +146,11 @@ func TestVariousFileTypes(t *testing.T) {
 
 func TestEdgeCases(t *testing.T) {
 	t.Run("single byte file", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		inputPath := filepath.Join(tmpDir, "single.txt")
-		compressedPath := filepath.Join(tmpDir, "single.huf")
-		decompressedPath := filepath.Join(tmpDir, "single_dec.txt")
-
-		data := []byte("A")
-		if err := os.WriteFile(inputPath, data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := huffman.CompressFile(inputPath, compressedPath); err != nil {
-			t.Fatalf("Compression failed: %v", err)
-		}
-
-		if err := huffman.DecompressFile(compressedPath, decompressedPath); err != nil {
-			t.Fatalf("Decompression failed: %v", err)
-		}
-
-		decompressed, _ := os.ReadFile(decompressedPath)
-		if !bytes.Equal(data, decompressed) {
-			t.Error("Single byte file compression/decompression failed")
-		}
+		testRoundTrip(t, []byte("A"), "Single byte file compression/decompression failed")
 	})
 
 	t.Run("all same character", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		inputPath := filepath.Join(tmpDir, "same.txt")
-		compressedPath := filepath.Join(tmpDir, "same.huf")
-		decompressedPath := filepath.Join(tmpDir, "same_dec.txt")
-
-		data := bytes.Repeat([]byte("X"), 500)
-		if err := os.WriteFile(inputPath, data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := huffman.CompressFile(inputPath, compressedPath); err != nil {
-			t.Fatalf("Compression failed: %v", err)
-		}
-
-		if err := huffman.DecompressFile(compressedPath, decompressedPath); err != nil {
-			t.Fatalf("Decompression failed: %v", err)
-		}
-
-		decompressed, _ := os.ReadFile(decompressedPath)
-		if !bytes.Equal(data, decompressed) {
-			t.Error("Same character file compression/decompression failed")
-		}
+		testRoundTrip(t, bytes.Repeat([]byte("X"), 500), "Same character file compression/decompression failed")
 	})
 }
 
