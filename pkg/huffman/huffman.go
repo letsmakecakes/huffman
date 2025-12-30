@@ -13,6 +13,7 @@ import (
 type Node struct {
 	Char  byte
 	Freq  int
+	Seq   int // Sequence number for tie-breaking in tree building
 	Left  *Node
 	Right *Node
 }
@@ -78,19 +79,37 @@ func BuildHuffmanTree(freq FrequencyTable) *Node {
 			return &Node{
 				Char:  char,
 				Freq:  count,
+				Seq:   0,
 				Left:  nil,
 				Right: nil,
 			}
 		}
 	}
 
-	// Create initial nodes
+	// Create initial nodes sorted by character for deterministic ordering
+	// This ensures that regardless of map iteration order, we always get the same tree
 	nodes := make([]*Node, 0, len(freq))
-	for char, count := range freq {
+	chars := make([]byte, 0, len(freq))
+	for char := range freq {
+		chars = append(chars, char)
+	}
+	// Simple bubble sort for small character sets (0-255)
+	for i := 0; i < len(chars); i++ {
+		for j := i + 1; j < len(chars); j++ {
+			if chars[j] < chars[i] {
+				chars[i], chars[j] = chars[j], chars[i]
+			}
+		}
+	}
+
+	seq := 0
+	for _, char := range chars {
 		nodes = append(nodes, &Node{
 			Char: char,
-			Freq: count,
+			Freq: freq[char],
+			Seq:  seq,
 		})
+		seq++
 	}
 
 	// Build tree by repeatedly combining two lowest frequency nodes
@@ -101,9 +120,11 @@ func BuildHuffmanTree(freq FrequencyTable) *Node {
 		// Create parent node
 		parent := &Node{
 			Freq:  nodes[min1Idx].Freq + nodes[min2Idx].Freq,
+			Seq:   seq,
 			Left:  nodes[min1Idx],
 			Right: nodes[min2Idx],
 		}
+		seq++
 
 		// Remove the two minimum nodes and add a parent
 		nodes = removeNodes(nodes, min1Idx, min2Idx)
@@ -115,15 +136,18 @@ func BuildHuffmanTree(freq FrequencyTable) *Node {
 
 func findTwoMinimum(nodes []*Node) (int, int) {
 	min1, min2 := 0, 1
-	if nodes[min1].Freq > nodes[min2].Freq {
+	if nodes[min1].Freq > nodes[min2].Freq ||
+		(nodes[min1].Freq == nodes[min2].Freq && nodes[min1].Seq > nodes[min2].Seq) {
 		min1, min2 = min2, min1
 	}
 
 	for i := 2; i < len(nodes); i++ {
-		if nodes[i].Freq < nodes[min1].Freq {
+		if nodes[i].Freq < nodes[min1].Freq ||
+			(nodes[i].Freq == nodes[min1].Freq && nodes[i].Seq < nodes[min1].Seq) {
 			min2 = min1
 			min1 = i
-		} else if nodes[i].Freq < nodes[min2].Freq {
+		} else if nodes[i].Freq < nodes[min2].Freq ||
+			(nodes[i].Freq == nodes[min2].Freq && nodes[i].Seq < nodes[min2].Seq) {
 			min2 = i
 		}
 	}
@@ -200,32 +224,29 @@ func EncodeData(data []byte, codes CodeTable) []byte {
 
 // WriteHeader writes a compression header to an output file
 func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, paddingBits int) error {
-	// Write a magic number
-	if _, err := writer.Write([]byte("HUF1")); err != nil {
+	// Write a magic byte
+	if err := binary.Write(writer, binary.BigEndian, uint8(0x48)); err != nil { // 'H'
 		return err
 	}
 
-	// Write original file size
-	if err := binary.Write(writer, binary.BigEndian, originalSize); err != nil {
+	// Write original file size as uint32
+	if err := binary.Write(writer, binary.BigEndian, uint32(originalSize)); err != nil {
 		return err
 	}
 
-	// Write padding bits
-	if err := binary.Write(writer, binary.BigEndian, uint8(paddingBits)); err != nil {
+	// Write padding bits and table size (1 byte)
+	tableSize := uint8(len(freq))
+	paddingByte := (uint8(paddingBits) << 5) | (tableSize & 0x1F)
+	if err := binary.Write(writer, binary.BigEndian, paddingByte); err != nil {
 		return err
 	}
 
-	// Write frequency table size
-	if err := binary.Write(writer, binary.BigEndian, uint32(len(freq))); err != nil {
-		return err
-	}
-
-	// Write the frequency table
+	// Write character and frequency for each entry
 	for char, count := range freq {
 		if err := binary.Write(writer, binary.BigEndian, char); err != nil {
 			return err
 		}
-		if err := binary.Write(writer, binary.BigEndian, uint32(count)); err != nil {
+		if err := binary.Write(writer, binary.BigEndian, uint8(count)); err != nil {
 			return err
 		}
 	}
@@ -235,42 +256,38 @@ func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, padd
 
 // ReadHeader reads compression header from an input file
 func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
-	// Read and verify the magic number
-	magic := make([]byte, 4)
-	if _, err := io.ReadFull(reader, magic); err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to read magic number: %w", err)
+	// Read and verify the magic byte
+	var magic uint8
+	if err := binary.Read(reader, binary.BigEndian, &magic); err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to read magic byte: %w", err)
 	}
-	if string(magic) != "HUF1" {
+	if magic != 0x48 { // 'H'
 		return nil, 0, 0, fmt.Errorf("invalid file format")
 	}
 
-	// Read the original file size
-	var originalSize int64
+	// Read the original file size as uint32
+	var originalSize uint32
 	if err := binary.Read(reader, binary.BigEndian, &originalSize); err != nil {
 		return nil, 0, 0, err
 	}
 
-	// Read padding bits
-	var paddingBits uint8
-	if err := binary.Read(reader, binary.BigEndian, &paddingBits); err != nil {
+	// Read padding bits and table size from one byte
+	var paddingAndSize uint8
+	if err := binary.Read(reader, binary.BigEndian, &paddingAndSize); err != nil {
 		return nil, 0, 0, err
 	}
-
-	// Read frequency table size
-	var tableSize uint32
-	if err := binary.Read(reader, binary.BigEndian, &tableSize); err != nil {
-		return nil, 0, 0, err
-	}
+	paddingBits := int(paddingAndSize >> 5)
+	tableSize := paddingAndSize & 0x1F
 
 	// Read the frequency table
 	freq := make(FrequencyTable)
-	for i := uint32(0); i < tableSize; i++ {
+	for i := uint8(0); i < tableSize; i++ {
 		var char byte
 		if err := binary.Read(reader, binary.BigEndian, &char); err != nil {
 			return nil, 0, 0, err
 		}
 
-		var count uint32
+		var count uint8
 		if err := binary.Read(reader, binary.BigEndian, &count); err != nil {
 			return nil, 0, 0, err
 		}
@@ -278,7 +295,7 @@ func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
 		freq[char] = int(count)
 	}
 
-	return freq, originalSize, int(paddingBits), nil
+	return freq, int64(originalSize), paddingBits, nil
 }
 
 // DecodeData decodes compressed data using Huffman tree
@@ -306,8 +323,14 @@ func DecodeData(data []byte, root *Node, originalSize int64, paddingBits int) ([
 		bit := (data[byteIdx] >> bitIdx) & 1
 
 		if bit == 0 {
+			if current.Left == nil {
+				return nil, fmt.Errorf("invalid bit sequence: no left child at bit %d", i)
+			}
 			current = current.Left
 		} else {
+			if current.Right == nil {
+				return nil, fmt.Errorf("invalid bit sequence: no right child at bit %d", i)
+			}
 			current = current.Right
 		}
 
