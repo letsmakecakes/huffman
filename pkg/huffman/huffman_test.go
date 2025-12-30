@@ -314,3 +314,13 @@ func TestCompressDecompressRoundTrip(t *testing.T) {
 		t.Errorf("Decompressed data doesn't match original.\nOriginal length: %d\nDecompressed length: %d", len(testData), len(decompressed))
 	}
 }
+
+func BenchmarkBuildHuffmanTree(b *testing.B) {
+	data := bytes.Repeat([]byte("the quick brown fox jumps over the lazy dog "), 100)
+	freq := BuildFrequencyTableFromData(data)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BuildHuffmanTree(freq)
+	}
+}
