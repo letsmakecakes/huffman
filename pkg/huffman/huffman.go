@@ -14,7 +14,7 @@ import (
 type Node struct {
 	Char  byte
 	Freq  int
-	Seq   int // Sequence number for tie-breaking in tree building
+	Seq   int // Sequence number for tiebreaking in tree building
 	Left  *Node
 	Right *Node
 }
@@ -232,7 +232,7 @@ func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, padd
 		return err
 	}
 
-	// Write original file size as uint32
+	// Write the original file size as uint32
 	if err := binary.Write(writer, binary.BigEndian, uint32(originalSize)); err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, padd
 		if err := binary.Write(writer, binary.BigEndian, char); err != nil {
 			return err
 		}
-		// Use uint16 for frequency to support counts up to 65535
+		// Use uint16 for frequency to support counts up to 65,535
 		if err := binary.Write(writer, binary.BigEndian, uint16(count)); err != nil {
 			return err
 		}
@@ -299,7 +299,7 @@ func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
 			return nil, 0, 0, err
 		}
 
-		// Read frequency as uint16 (supports counts up to 65535)
+		// Read frequency as uint16 (supports counts up to 65,535)
 		var count uint16
 		if err := binary.Read(reader, binary.BigEndian, &count); err != nil {
 			return nil, 0, 0, err
