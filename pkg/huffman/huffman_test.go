@@ -2,6 +2,7 @@ package huffman
 
 import (
 	"bytes"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -237,5 +238,79 @@ func TestHeaderWriteRead(t *testing.T) {
 
 	if paddingBits != readPadding {
 		t.Errorf("Padding bits don't match. Expected: %d, Got: %d", paddingBits, readPadding)
+	}
+}
+
+func TestCompressDecompressRoundTrip(t *testing.T) {
+	// Use data with low entropy that compresses well with Huffman
+	// High repetition of few characters allows compression to overcome header overhead
+	testData := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccddddddddddddddddeeeeeeeeeeeeeeffffffffgggggggghhhhhhhhiiiiiijjjjjjkkkkkkllllmmmmnnnnooooppppqqqqrrrrssssttttuuuuvvvvwwwwxxyyzz")
+
+	// Create a temp input file
+	tmpInput, err := os.CreateTemp("", "huffman_input_*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Errorf("failed to remove temp input file: %v", err)
+		}
+	}(tmpInput.Name())
+
+	if _, err := tmpInput.Write(testData); err != nil {
+		t.Fatal(err)
+	}
+	err = tmpInput.Close()
+	if err != nil {
+		t.Errorf("failed to close temp input file: %v", err)
+	}
+
+	// Compress
+	compressedPath := tmpInput.Name() + ".huf"
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Errorf("failed to remove compressed file: %v", err)
+		}
+	}(compressedPath)
+
+	if err := CompressFile(tmpInput.Name(), compressedPath); err != nil {
+		t.Fatalf("Compression failed: %v", err)
+	}
+
+	// Verify the compressed file is smaller (for this input)
+	inputInfo, _ := os.Stat(tmpInput.Name())
+	compressedInfo, _ := os.Stat(compressedPath)
+
+	if compressedInfo.Size() == 0 {
+		t.Error("Compressed file is empty")
+	}
+
+	if compressedInfo.Size() >= inputInfo.Size() {
+		t.Errorf("Compressed file is larger than original. Original size: %d, Compressed size: %d", inputInfo.Size(), compressedInfo.Size())
+	}
+
+	// Decompress
+	decompressedPath := tmpInput.Name() + ".dec"
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Errorf("failed to remove decompressed file: %v", err)
+		}
+	}(decompressedPath)
+
+	if err := DecompressFile(compressedPath, decompressedPath); err != nil {
+		t.Fatalf("Decompression failed: %v", err)
+	}
+
+	// Verify decompressed data matches original
+	decompressed, err := os.ReadFile(decompressedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(testData, decompressed) {
+		t.Errorf("Decompressed data doesn't match original.\nOriginal length: %d\nDecompressed length: %d", len(testData), len(decompressed))
 	}
 }
