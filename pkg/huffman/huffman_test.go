@@ -203,3 +203,39 @@ func TestEncodeDecodeData(t *testing.T) {
 		})
 	}
 }
+
+func TestHeaderWriteRead(t *testing.T) {
+	freq := FrequencyTable{
+		'a': 3,
+		'b': 2,
+		'c': 1,
+	}
+	originalSize := int64(100)
+	paddingBits := 5
+
+	var buf bytes.Buffer
+
+	// Write header
+	err := WriteHeader(&buf, freq, originalSize, paddingBits)
+	if err != nil {
+		t.Fatalf("WriteHeader error: %v", err)
+	}
+
+	// Read header
+	readFreq, readSize, readPadding, err := ReadHeader(&buf)
+	if err != nil {
+		t.Fatalf("ReadHeader error: %v", err)
+	}
+
+	if !reflect.DeepEqual(freq, readFreq) {
+		t.Errorf("Frequency tables don't match.\nExpected: %v\nGot: %v", freq, readFreq)
+	}
+
+	if originalSize != readSize {
+		t.Errorf("Original sizes don't match. Expected: %d, Got: %d", originalSize, readSize)
+	}
+
+	if paddingBits != readPadding {
+		t.Errorf("Padding bits don't match. Expected: %d, Got: %d", paddingBits, readPadding)
+	}
+}

@@ -2,6 +2,7 @@ package huffman
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -195,6 +196,89 @@ func EncodeData(data []byte, codes CodeTable) []byte {
 	}
 
 	return result
+}
+
+// WriteHeader writes a compression header to an output file
+func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, paddingBits int) error {
+	// Write a magic number
+	if _, err := writer.Write([]byte("HUF1")); err != nil {
+		return err
+	}
+
+	// Write original file size
+	if err := binary.Write(writer, binary.BigEndian, originalSize); err != nil {
+		return err
+	}
+
+	// Write padding bits
+	if err := binary.Write(writer, binary.BigEndian, uint8(paddingBits)); err != nil {
+		return err
+	}
+
+	// Write frequency table size
+	if err := binary.Write(writer, binary.BigEndian, uint32(len(freq))); err != nil {
+		return err
+	}
+
+	// Write the frequency table
+	for char, count := range freq {
+		if err := binary.Write(writer, binary.BigEndian, char); err != nil {
+			return err
+		}
+		if err := binary.Write(writer, binary.BigEndian, uint32(count)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ReadHeader reads compression header from an input file
+func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
+	// Read and verify the magic number
+	magic := make([]byte, 4)
+	if _, err := io.ReadFull(reader, magic); err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to read magic number: %w", err)
+	}
+	if string(magic) != "HUF1" {
+		return nil, 0, 0, fmt.Errorf("invalid file format")
+	}
+
+	// Read the original file size
+	var originalSize int64
+	if err := binary.Read(reader, binary.BigEndian, &originalSize); err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Read padding bits
+	var paddingBits uint8
+	if err := binary.Read(reader, binary.BigEndian, &paddingBits); err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Read frequency table size
+	var tableSize uint32
+	if err := binary.Read(reader, binary.BigEndian, &tableSize); err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Read the frequency table
+	freq := make(FrequencyTable)
+	for i := uint32(0); i < tableSize; i++ {
+		var char byte
+		if err := binary.Read(reader, binary.BigEndian, &char); err != nil {
+			return nil, 0, 0, err
+		}
+
+		var count uint32
+		if err := binary.Read(reader, binary.BigEndian, &count); err != nil {
+			return nil, 0, 0, err
+		}
+
+		freq[char] = int(count)
+	}
+
+	return freq, originalSize, int(paddingBits), nil
 }
 
 // DecodeData decodes compressed data using Huffman tree
