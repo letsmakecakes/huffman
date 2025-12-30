@@ -237,10 +237,14 @@ func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, padd
 		return err
 	}
 
-	// Write padding bits and table size (1 byte)
+	// Write padding bits as a separate byte
+	if err := binary.Write(writer, binary.BigEndian, uint8(paddingBits)); err != nil {
+		return err
+	}
+
+	// Write table size as a full byte (supports 0-255 unique characters)
 	tableSize := uint8(len(freq))
-	paddingByte := (uint8(paddingBits) << 5) | (tableSize & 0x1F)
-	if err := binary.Write(writer, binary.BigEndian, paddingByte); err != nil {
+	if err := binary.Write(writer, binary.BigEndian, tableSize); err != nil {
 		return err
 	}
 
@@ -249,7 +253,8 @@ func WriteHeader(writer io.Writer, freq FrequencyTable, originalSize int64, padd
 		if err := binary.Write(writer, binary.BigEndian, char); err != nil {
 			return err
 		}
-		if err := binary.Write(writer, binary.BigEndian, uint8(count)); err != nil {
+		// Use uint16 for frequency to support counts up to 65535
+		if err := binary.Write(writer, binary.BigEndian, uint16(count)); err != nil {
 			return err
 		}
 	}
@@ -274,13 +279,17 @@ func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
 		return nil, 0, 0, err
 	}
 
-	// Read padding bits and table size from one byte
-	var paddingAndSize uint8
-	if err := binary.Read(reader, binary.BigEndian, &paddingAndSize); err != nil {
+	// Read padding bits as a separate byte
+	var paddingBits uint8
+	if err := binary.Read(reader, binary.BigEndian, &paddingBits); err != nil {
 		return nil, 0, 0, err
 	}
-	paddingBits := int(paddingAndSize >> 5)
-	tableSize := paddingAndSize & 0x1F
+
+	// Read table size as a full byte (supports 0-255 unique characters)
+	var tableSize uint8
+	if err := binary.Read(reader, binary.BigEndian, &tableSize); err != nil {
+		return nil, 0, 0, err
+	}
 
 	// Read the frequency table
 	freq := make(FrequencyTable)
@@ -290,7 +299,8 @@ func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
 			return nil, 0, 0, err
 		}
 
-		var count uint8
+		// Read frequency as uint16 (supports counts up to 65535)
+		var count uint16
 		if err := binary.Read(reader, binary.BigEndian, &count); err != nil {
 			return nil, 0, 0, err
 		}
@@ -298,7 +308,7 @@ func ReadHeader(reader io.Reader) (FrequencyTable, int64, int, error) {
 		freq[char] = int(count)
 	}
 
-	return freq, int64(originalSize), paddingBits, nil
+	return freq, int64(originalSize), int(paddingBits), nil
 }
 
 // DecodeData decodes compressed data using Huffman tree
