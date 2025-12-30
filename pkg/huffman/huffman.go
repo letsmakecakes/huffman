@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 // Node represents a node in the Huffman tree.
@@ -202,10 +203,12 @@ func generateCodes(node *Node, code string, codes CodeTable) {
 
 // EncodeData encodes data using the code table
 func EncodeData(data []byte, codes CodeTable) []byte {
-	var bitString string
+	// Use strings.Builder for efficient string concatenation
+	var buf strings.Builder
 	for _, b := range data {
-		bitString += codes[b]
+		buf.WriteString(codes[b])
 	}
+	bitString := buf.String()
 
 	// Pack bits into bytes
 	byteCount := (len(bitString) + 7) / 8
