@@ -315,6 +315,15 @@ func TestCompressDecompressRoundTrip(t *testing.T) {
 	}
 }
 
+func BenchmarkBuildFrequencyTable(b *testing.B) {
+	data := bytes.Repeat([]byte("the quick brown fox jumps over the lazy dog "), 100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BuildFrequencyTableFromData(data)
+	}
+}
+
 func BenchmarkBuildHuffmanTree(b *testing.B) {
 	data := bytes.Repeat([]byte("the quick brown fox jumps over the lazy dog "), 100)
 	freq := BuildFrequencyTableFromData(data)
